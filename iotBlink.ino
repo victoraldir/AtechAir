@@ -2,7 +2,8 @@
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
 #include <IRsend.h>
-/*static const uint8_t D0   = 16;
+
+static const uint8_t D0   = 16;
   static const uint8_t D1   = 5;
   static const uint8_t D2   = 4;
   static const uint8_t D3   = 0;
@@ -12,7 +13,7 @@
   static const uint8_t D7   = 13;
   static const uint8_t D8   = 15;
   static const uint8_t D9   = 3;
-  static const uint8_t D10  = 1;*/
+  static const uint8_t D10  = 1;
 
 extern "C"
 {
@@ -295,6 +296,7 @@ void connectWifiAtech()
 {
   if (WiFi.status() != WL_CONNECTED)
   {
+    WiFi.disconnect(true);
     Serial.println();
     Serial.println("TENTANDO CONECTAR ");
     Serial.println();
@@ -327,8 +329,6 @@ void connectWifiAtech()
     Serial.println();
     while (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
-      Serial.print("status: ");
-      Serial.println(WiFi.status());
       delay(2000);
       Serial.print(".");
     }
