@@ -20,7 +20,6 @@ extern "C"
 #include "user_interface.h"
 #include "wpa2_enterprise.h"
 }
-
 char auth[] = ""; // Auth Token in the Blynk App.
 
 static const char *ssid = ""; // SSID to connect to
@@ -29,11 +28,14 @@ static const char *username = ""; // Username for authentification
 
 static const char *password = ""; // Password for authentication
 
+#define LED_BUILTIN 2  // led built in of lolin v3
+
 WidgetLED led1(V1); // Virtual Led on blynk
 
 const uint16_t kIrLed = D2; // ESP8266 GPIO to Send IR command.
 
-const int ledRed = D7; // Fisical red led indicator
+const int ledRed = LED_BUILTIN; // Fisical red led indicator
+
 
 IRsend irsend(kIrLed); // Set the GPIO to be used to sending the message.
 
@@ -98,9 +100,9 @@ BLYNK_WRITE(V2)
     irsend.sendRaw(ligar23, 59, 38); // ligando no 23
 
     led1.on();
-    digitalWrite(ledRed, HIGH);
-    delay(40);
     digitalWrite(ledRed, LOW);
+    delay(40);
+    digitalWrite(ledRed, HIGH);
     led1.off();
     Blynk.virtualWrite(V0, 23);
   }
@@ -110,9 +112,9 @@ BLYNK_WRITE(V2)
     irsend.sendRaw(desligar, 59, 38); // desligando
     temperatura = 0;
     led1.on();
-    digitalWrite(ledRed, HIGH);
-    delay(40);
     digitalWrite(ledRed, LOW);
+    delay(40);
+    digitalWrite(ledRed, HIGH);
     led1.off();
     Blynk.virtualWrite(V0, 0);
   }
@@ -129,7 +131,7 @@ BLYNK_WRITE(V3)
     Serial.print("temperatura ");
     Serial.println(temperatura);
     led1.on();
-    digitalWrite(ledRed, HIGH);
+    digitalWrite(ledRed, LOW);
 
     if (temperatura < 30 && temperatura != 0)
     { // se a temperatura for menor que 30 então aumenta
@@ -199,7 +201,7 @@ BLYNK_WRITE(V3)
     }
 
     Blynk.syncVirtual(V0);
-    digitalWrite(ledRed, LOW);
+    digitalWrite(ledRed, HIGH);
     led1.off();
   }
 }
@@ -214,7 +216,7 @@ BLYNK_WRITE(V4)
     Serial.print("temperatura: ");
     Serial.println(temperatura);
     led1.on();
-    digitalWrite(ledRed, HIGH);
+    digitalWrite(ledRed, LOW);
 
     if (temperatura > 17 && temperatura != 0)
     { // se a temperatura for menor que 30 então aumenta
@@ -286,7 +288,7 @@ BLYNK_WRITE(V4)
     }
 
     Blynk.syncVirtual(V0);
-    digitalWrite(ledRed, LOW);
+    digitalWrite(ledRed, HIGH);
     led1.off();
   }
 }
@@ -320,6 +322,7 @@ void connectWifiAtech()
     wifi_station_set_enterprise_password((uint8 *)password, strlen(password));
 
     wifi_station_connect();
+
     Serial.print("Wifi station connect status:");
     Serial.println(wifi_station_get_connect_status());
 
@@ -329,8 +332,8 @@ void connectWifiAtech()
     Serial.println();
     while (WiFi.waitForConnectResult() != WL_CONNECTED)
     {
-      delay(2000);
       Serial.print(".");
+      delay(2000);
     }
   }
 
@@ -345,9 +348,10 @@ void connectWifiAtech()
     while (Blynk.connect() == false)
     {
       // Wait until connected
-      Serial.print("|-");
+      Serial.print("|");
     }
     Serial.println("Connected to Blynk server");
+    isFirstConnect = false;
   }
   else
   {
@@ -367,7 +371,6 @@ void CheckConnection()
   delay(10);
   if (WiFi.status() != WL_CONNECTED || !Connected2Blynk)
   {
-
     Serial.println("Not connected to Blynk server");
     connectWifiAtech();
   }
@@ -387,7 +390,7 @@ void setup()
   irsend.begin();
   // Blynk.begin(auth, ssid, pass); // WIFI NORMAL
   connectWifiAtech();                         // WIFI ATECH
-  timer.setInterval(20000L, CheckConnection); // check if still connected every 20 seconds
+  timer.setInterval(60000L, CheckConnection); // check if still connected every 60 seconds
 }
 
 void loop()
