@@ -1,9 +1,10 @@
 #include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <BlynkSimpleEsp8266.h>
+#include <ESP8266WebServer.h>
 #include <IRsend.h>
 
-static const uint8_t D0   = 16;
+/*static const uint8_t D0   = 16;
   static const uint8_t D1   = 5;
   static const uint8_t D2   = 4;
   static const uint8_t D3   = 0;
@@ -13,14 +14,13 @@ static const uint8_t D0   = 16;
   static const uint8_t D7   = 13;
   static const uint8_t D8   = 15;
   static const uint8_t D9   = 3;
-  static const uint8_t D10  = 1;
+  static const uint8_t D10  = 1;*/
 
 extern "C"
 {
 #include "user_interface.h"
 #include "wpa2_enterprise.h"
 }
-
 char auth[] = ""; // Auth Token in the Blynk App.
 
 static const char *ssid = ""; // SSID to connect to
@@ -29,16 +29,67 @@ static const char *username = ""; // Username for authentification
 
 static const char *password = ""; // Password for authentication
 
+#define LED_BUILTIN 2  // led built in of lolin v3
+
 WidgetLED led1(V1); // Virtual Led on blynk
 
 const uint16_t kIrLed = D2; // ESP8266 GPIO to Send IR command.
-
-const int ledRed = D7; // Fisical red led indicator
 
 IRsend irsend(kIrLed); // Set the GPIO to be used to sending the message.
 
 // Keep this flag not to re-sync on every reconnection
 bool isFirstConnect = true;
+
+
+//SSID and Password for ESP8266 AP mode
+const char* ssidAp = "ATECH-AIR-TESTE";
+const char* passwordAp = "123456789";
+
+ESP8266WebServer server(80); //Server on port 80
+
+String nomeRede = "TIRAR"; 
+String usuarioRede = ""; 
+String senhaRede = "";
+
+IPAddress local_IP(192,168,4,22);
+
+IPAddress gateway(192,168,4,9);
+
+IPAddress subnet(255,255,255,0);
+
+// página inicial de configuração
+const char MAIN_page[] PROGMEM = R"=====( 
+<!DOCTYPE html>
+<html>
+
+<body>
+
+    <h2>ATECH AIR 1.2.1<h2>
+            <h3> Configuration Wifi Mode</h3>
+
+            <form action="/action_page">
+                Nome da rede:<br />
+                <input type="text" name="nomeRede" value="" placeholder="SSID">
+                <br />
+                <br />
+                Usuario da rede:<br />
+                <input type="text" name="usuarioRede" value="" placeholder="USERNAME">
+                <br />
+                <br />
+                Senha da rede:<br />
+                <input type="text" name="senhaRede" value="" placeholder="PASSWORD">
+
+                <br />
+                <br />
+                <input type="submit" value="Gravar configuração">
+            </form>
+
+</body>
+
+</html>
+)=====";
+
+
 
 uint16_t ligar[71] = {9104, 4428, 628, 1646, 624, 516, 626, 514, 630, 514, 630, 512, 630, 514, 628, 514, 628, 514, 628, 516, 628, 1640, 630, 1642, 626, 1642, 628, 1640, 628, 1640, 630, 1640, 628, 1642, 628, 516, 628, 516, 628, 516, 628, 514, 628, 518, 626, 514, 630, 1642, 628, 514, 628, 1644, 624, 1642, 628, 1642, 628, 1640, 628, 1640, 630, 1638, 630, 516, 628, 1644, 626, 40104, 9106, 2208, 630};    // NEC 807F02FD
 uint16_t aumentar[71] = {9082, 4450, 608, 1660, 606, 536, 606, 536, 634, 510, 634, 510, 606, 536, 608, 536, 604, 538, 606, 558, 586, 1664, 604, 1662, 606, 1664, 606, 1662, 608, 1662, 606, 1662, 606, 1664, 608, 538, 606, 538, 606, 538, 606, 1662, 608, 1662, 606, 538, 606, 538, 606, 536, 604, 1666, 602, 1666, 608, 1662, 606, 538, 606, 556, 588, 1662, 608, 1724, 542, 1666, 608, 40142, 9082, 2230, 604}; // NEC 807F18E7
@@ -60,6 +111,7 @@ uint16_t ligar29[59] = {3158, 9774, 538, 1530, 538, 510, 514, 512, 542, 486, 514
 uint16_t ligar30[59] = {3160, 9770, 534, 1516, 570, 490, 512, 492, 570, 490, 510, 1526, 570, 488, 540, 464, 568, 492, 510, 492, 542, 514, 538, 492, 508, 516, 512, 516, 510, 518, 510, 1534, 570, 1518, 536, 1534, 536, 1530, 506, 1554, 506, 1544, 538, 490, 536, 1508, 570, 492, 536, 464, 570, 490, 510, 1518, 570, 1492, 570, 472, 570}; // LG2 8803F46
 
 uint16_t temperatura = 0;
+uint16_t timerId;
 
 SimpleTimer timer;
 bool Connected2Blynk = false;
@@ -73,7 +125,6 @@ BLYNK_CONNECTED()
     Blynk.syncAll();
     isFirstConnect = false;
     Serial.println("BLYNK SINCRONIZADO: ");
-    Serial.println(temperatura);
   }
 }
 
@@ -82,8 +133,6 @@ BLYNK_WRITE(V0) // valor da temperatura vindo do servidor
 
   if (param.asInt())
   {
-    Serial.println("get temperatura from server: ");
-    Serial.print(param.asInt());
     temperatura = param.asInt();
   }
 }
@@ -94,25 +143,25 @@ BLYNK_WRITE(V2)
   // int pinValue = param.asInt(); // assigning incoming value from pin V1 to a variable
   if (param.asInt())
   {
-    Serial.println("Enviando comando de LIGAR ");
+    Serial.println("LIGAR");
     irsend.sendRaw(ligar23, 59, 38); // ligando no 23
 
     led1.on();
-    digitalWrite(ledRed, HIGH);
+    digitalWrite(LED_BUILTIN, LOW);  // Turn the LED on
     delay(40);
-    digitalWrite(ledRed, LOW);
+    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
     led1.off();
     Blynk.virtualWrite(V0, 23);
   }
   else
   {
-    Serial.println("Enviando comando de desligar");
+    Serial.println("DESLIGAR");
     irsend.sendRaw(desligar, 59, 38); // desligando
     temperatura = 0;
     led1.on();
-    digitalWrite(ledRed, HIGH);
+    digitalWrite(LED_BUILTIN, LOW);// Turn the LED on
     delay(40);
-    digitalWrite(ledRed, LOW);
+    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
     led1.off();
     Blynk.virtualWrite(V0, 0);
   }
@@ -129,7 +178,7 @@ BLYNK_WRITE(V3)
     Serial.print("temperatura ");
     Serial.println(temperatura);
     led1.on();
-    digitalWrite(ledRed, HIGH);
+    digitalWrite(LED_BUILTIN, LOW);// Turn the LED on
 
     if (temperatura < 30 && temperatura != 0)
     { // se a temperatura for menor que 30 então aumenta
@@ -199,7 +248,7 @@ BLYNK_WRITE(V3)
     }
 
     Blynk.syncVirtual(V0);
-    digitalWrite(ledRed, LOW);
+    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
     led1.off();
   }
 }
@@ -214,7 +263,7 @@ BLYNK_WRITE(V4)
     Serial.print("temperatura: ");
     Serial.println(temperatura);
     led1.on();
-    digitalWrite(ledRed, HIGH);
+    digitalWrite(LED_BUILTIN, LOW); // Turn the LED on
 
     if (temperatura > 17 && temperatura != 0)
     { // se a temperatura for menor que 30 então aumenta
@@ -286,115 +335,194 @@ BLYNK_WRITE(V4)
     }
 
     Blynk.syncVirtual(V0);
-    digitalWrite(ledRed, LOW);
+    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
     led1.off();
   }
 }
 
+
+//===============================================================
+// This routine is executed when you open its IP in browser
+//===============================================================
+void handleRoot() {
+ String homePage = MAIN_page; //Read HTML contents
+ server.send(200, "text/html", homePage); //Send web page
+}
+
+//===============================================================
+// This routine is executed when you press submit
+//===============================================================
+void handleForm() {
+  nomeRede = server.arg("nomeRede"); 
+  usuarioRede = server.arg("usuarioRede"); 
+  senhaRede = server.arg("senhaRede");
+
+ Serial.print("Nome da rede:");
+ Serial.println(nomeRede);
+ 
+ Serial.print("Usuario da rede:");
+ Serial.println(usuarioRede);
+
+ Serial.print("Senha da rede:");
+ Serial.println(senhaRede);
+ 
+ String s = "<a href='/'> Go Back </a>";
+ server.send(200, "text/html", s); //Send web page
+   WiFi.reconnect(); // GUARDAR NO EPRO E RESETAR O BICHO
+    //WiFi.disconnect();
+  //  ESP.reset();
+}
+
+
 // function to connect PEAP wifi network
-void connectWifiAtech()
+void ConnectWifi()
 {
-  if (WiFi.status() != WL_CONNECTED)
-  {
-    WiFi.disconnect(true);
+    
+  // verifica WIFI 
+  if (WiFi.status() != WL_CONNECTED){
     Serial.println();
-    Serial.println("TENTANDO CONECTAR ");
-    Serial.println();
+    Serial.println("TENTANDO CONECTAR no wifi... ");
 
     // Setting ESP into STATION mode only (no AP mode or dual mode)
     wifi_set_opmode(STATION_MODE);
-
     struct station_config wifi_config;
-
     memset(&wifi_config, 0, sizeof(wifi_config));
     strcpy((char *)wifi_config.ssid, ssid);
-
     wifi_station_set_config(&wifi_config);
-
     wifi_station_clear_cert_key();
     wifi_station_clear_enterprise_ca_cert();
-
     wifi_station_set_wpa2_enterprise_auth(1);
     wifi_station_set_enterprise_identity((uint8 *)username, strlen(username));
     wifi_station_set_enterprise_username((uint8 *)username, strlen(username));
     wifi_station_set_enterprise_password((uint8 *)password, strlen(password));
-
     wifi_station_connect();
-    Serial.print("Wifi station connect status:");
-    Serial.println(wifi_station_get_connect_status());
 
+  
     // Wait for connection AND IP address from DHCP
-    Serial.println();
     Serial.println("PEGANDO UM IP ");
-    Serial.println();
-    while (WiFi.waitForConnectResult() != WL_CONNECTED)
+    Serial.println(nomeRede);
+    int count = 0;
+    while (WiFi.status() != WL_CONNECTED)
     {
-      delay(2000);
+      count++;
       Serial.print(".");
+      delay(1000);
+      if(count == 30) {
+        return;
+      }
     }
   }
-
-  if (WiFi.status() == WL_CONNECTED)
-  {
+// VERIFICA BLYNK
+  if (WiFi.status() == WL_CONNECTED){
+   
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
     Blynk.config(auth); // in place of Blynk.begin(auth, ssid, pass);
+    Serial.println("-----------------------");
     Serial.println("try conect to Blynk server");
     while (Blynk.connect() == false)
     {
       // Wait until connected
-      Serial.print("|-");
+      Serial.print("|");
+       delay(1000);
     }
     Serial.println("Connected to Blynk server");
+    digitalWrite(LED_BUILTIN, HIGH); // desligando o led
+    isFirstConnect = false;
   }
+
   else
   {
     Serial.println("\nCheck Router ");
   }
 }
 
+
+
+
+void initApMode() {
+  Serial.println("");
+  WiFi.mode(WIFI_AP);           //Only Access point
+  WiFi.softAP(ssidAp, passwordAp);  //Start HOTspot removing password will disable security
+
+  IPAddress myIP = WiFi.softAPIP(); //Get IP address
+  Serial.print("HotSpt IP:");
+  Serial.println(myIP);
+ 
+  server.on("/", handleRoot);      //Which routine to handle at root location
+  server.on("/action_page", handleForm); //form action is handled here
+  server.begin();                  //Start server
+  Serial.println("HTTP server started");
+  
+}
+
+
 void CheckConnection()
 {
-  Serial.println("check connection");
-  Serial.print("blynk:");
-  Connected2Blynk = Blynk.connected();
-  Serial.println(Connected2Blynk);
-  Serial.print("WIFI:");
-  Serial.println(WiFi.status());
 
-  delay(10);
-  if (WiFi.status() != WL_CONNECTED || !Connected2Blynk)
+  if (nomeRede != "")
   {
+    Serial.println();
+    Serial.println(" ---------------------- check connection  ------------------------");
+    delay(10);
+    Connected2Blynk = Blynk.connected();
 
-    Serial.println("Not connected to Blynk server");
-    connectWifiAtech();
-  }
-  else
-  {
-    Serial.print("Still connected to Blynk server: ");
-    Serial.println(WiFi.localIP());
+    Serial.print("blynk:");
+    Serial.println(Connected2Blynk);
+    Serial.println("--------");
+    Serial.print("WIFI:");
+    Serial.println(WiFi.status());
+
+    if (WiFi.status() != WL_CONNECTED || !Connected2Blynk)
+    {
+      Serial.println();
+      Serial.println("Not connected to Blynk server or wifi");
+      ConnectWifi();
+    }
+    else
+    {
+      Serial.println();
+      Serial.print("Still connected to Blynk server: ");
+      Serial.println(WiFi.localIP());
+    }
   }
 }
+
 
 void setup()
 {
   // put your setup code here, to run once:
   Serial.begin(9600);
   delay(10);
-  pinMode(ledRed, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
   irsend.begin();
-  // Blynk.begin(auth, ssid, pass); // WIFI NORMAL
-  connectWifiAtech();                         // WIFI ATECH
-  timer.setInterval(20000L, CheckConnection); // check if still connected every 20 seconds
+  if (nomeRede != "") {
+    Serial.println("EXISTE UMA REDE WIFI CONFIGURADA:");
+    Serial.println(nomeRede);
+    timerId = timer.setInterval(20000L, CheckConnection); // check if still connected every 20 seconds
+  }else {
+     Serial.println("Não existe uma rede configurada, entrando em modo AP");
+     initApMode();
+  }
+  
+ 
 }
+
+
 
 void loop()
 {
-  if (WiFi.status() == WL_CONNECTED && Connected2Blynk)
-  {
-    Blynk.run(); // only process Blyk.run() function if we are connected to Blynk server
+
+  if (nomeRede != "") { // se tiver com rede e usuário conectados
+    if (WiFi.status() == WL_CONNECTED && Connected2Blynk)
+    {
+      Blynk.run(); // only process Blyk.run() function if we are connected to Blynk server
+    }
+    timer.run();
+  } else {
+    server.handleClient();
   }
-  timer.run();
+   
 }
