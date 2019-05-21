@@ -6,7 +6,7 @@
 
 <h3> Desenvolvido para</h3>
 <p>
-  Chip nodeMcu 1.0;<br/>
+  Chip NodeMcu 1.0;<br/>
   Ar condicionado modelo LG;
 </p>
 
