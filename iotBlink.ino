@@ -21,15 +21,15 @@ extern "C"
 #include "user_interface.h"
 #include "wpa2_enterprise.h"
 }
-char auth[] = ""; // Auth Token in the Blynk App.
+char auth[] = "9532d90f53974b09955c9c353810ed06"; // Auth Token in the Blynk App.
 
-static const char *ssid = ""; // SSID to connect to
+static const char *ssid = "ATECH"; // SSID to connect to
 
-static const char *username = ""; // Username for authentification
+static const char *username = "rssoares"; // Username for authentification
 
-static const char *password = ""; // Password for authentication
+static const char *password = "Ac03b76a@4796"; // Password for authentication
 
-#define LED_BUILTIN 2  // led built in of lolin v3
+#define LED_BUILTIN 2 // led built in of lolin v3
 
 WidgetLED led1(V1); // Virtual Led on blynk
 
@@ -40,56 +40,55 @@ IRsend irsend(kIrLed); // Set the GPIO to be used to sending the message.
 // Keep this flag not to re-sync on every reconnection
 bool isFirstConnect = true;
 
-
 //SSID and Password for ESP8266 AP mode
-const char* ssidAp = "ATECH-AIR-TESTE";
-const char* passwordAp = "123456789";
+const char *ssidAp = "ATECH-AIR-TESTE";
+const char *passwordAp = "123456789";
 
 ESP8266WebServer server(80); //Server on port 80
 
-String nomeRede = "TIRAR"; 
-String usuarioRede = ""; 
+String nomeRede = "TIRAR";
+String usuarioRede = "";
 String senhaRede = "";
 
-IPAddress local_IP(192,168,4,22);
+IPAddress local_IP(192, 168, 4, 22);
 
-IPAddress gateway(192,168,4,9);
+IPAddress gateway(192, 168, 4, 9);
 
-IPAddress subnet(255,255,255,0);
+IPAddress subnet(255, 255, 255, 0);
 
 // página inicial de configuração
 const char MAIN_page[] PROGMEM = R"=====( 
 <!DOCTYPE html>
 <html>
+  <head>
+      <title>Configurando seu equipamento</title>
+      <meta name="viewport" content="width=device-width, user-scalable=no" />
+      <meta charset="ISO-8859-1">
+  </head>
+  <body>
 
-<body>
+      <h2>ATECH AIR 1.2.1<h2>
+      <h3> Configuration Wifi Mode</h3>
 
-    <h2>ATECH AIR 1.2.1<h2>
-            <h3> Configuration Wifi Mode</h3>
+      <form action="/action_page">
+          Nome da rede:<br />
+          <input type="text" name="nomeRede" value="" placeholder="SSID">
+            <br/>
+            <br/>
+          Usuario da rede:<br/>
+          <input type="text" name="usuarioRede" value="" placeholder="USERNAME">
+            <br/>
+            <br/>
+          Senha da rede:<br/>
+          <input type="text" name="senhaRede" value="" placeholder="PASSWORD">
+            <br/>
+            <br/>
+          <input type="submit" value="Gravar configuração">                  
+      </form>             
 
-            <form action="/action_page">
-                Nome da rede:<br />
-                <input type="text" name="nomeRede" value="" placeholder="SSID">
-                <br />
-                <br />
-                Usuario da rede:<br />
-                <input type="text" name="usuarioRede" value="" placeholder="USERNAME">
-                <br />
-                <br />
-                Senha da rede:<br />
-                <input type="text" name="senhaRede" value="" placeholder="PASSWORD">
-
-                <br />
-                <br />
-                <input type="submit" value="Gravar configuração">
-            </form>
-
-</body>
-
+  </body>
 </html>
 )=====";
-
-
 
 uint16_t ligar[71] = {9104, 4428, 628, 1646, 624, 516, 626, 514, 630, 514, 630, 512, 630, 514, 628, 514, 628, 514, 628, 516, 628, 1640, 630, 1642, 626, 1642, 628, 1640, 628, 1640, 630, 1640, 628, 1642, 628, 516, 628, 516, 628, 516, 628, 514, 628, 518, 626, 514, 630, 1642, 628, 514, 628, 1644, 624, 1642, 628, 1642, 628, 1640, 628, 1640, 630, 1638, 630, 516, 628, 1644, 626, 40104, 9106, 2208, 630};    // NEC 807F02FD
 uint16_t aumentar[71] = {9082, 4450, 608, 1660, 606, 536, 606, 536, 634, 510, 634, 510, 606, 536, 608, 536, 604, 538, 606, 558, 586, 1664, 604, 1662, 606, 1664, 606, 1662, 608, 1662, 606, 1662, 606, 1664, 608, 538, 606, 538, 606, 538, 606, 1662, 608, 1662, 606, 538, 606, 538, 606, 536, 604, 1666, 602, 1666, 608, 1662, 606, 538, 606, 556, 588, 1662, 608, 1724, 542, 1666, 608, 40142, 9082, 2230, 604}; // NEC 807F18E7
@@ -147,9 +146,9 @@ BLYNK_WRITE(V2)
     irsend.sendRaw(ligar23, 59, 38); // ligando no 23
 
     led1.on();
-    digitalWrite(LED_BUILTIN, LOW);  // Turn the LED on
+    digitalWrite(LED_BUILTIN, LOW); // Turn the LED on
     delay(40);
-    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
+    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off
     led1.off();
     Blynk.virtualWrite(V0, 23);
   }
@@ -159,9 +158,9 @@ BLYNK_WRITE(V2)
     irsend.sendRaw(desligar, 59, 38); // desligando
     temperatura = 0;
     led1.on();
-    digitalWrite(LED_BUILTIN, LOW);// Turn the LED on
+    digitalWrite(LED_BUILTIN, LOW); // Turn the LED on
     delay(40);
-    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
+    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off
     led1.off();
     Blynk.virtualWrite(V0, 0);
   }
@@ -178,7 +177,7 @@ BLYNK_WRITE(V3)
     Serial.print("temperatura ");
     Serial.println(temperatura);
     led1.on();
-    digitalWrite(LED_BUILTIN, LOW);// Turn the LED on
+    digitalWrite(LED_BUILTIN, LOW); // Turn the LED on
 
     if (temperatura < 30 && temperatura != 0)
     { // se a temperatura for menor que 30 então aumenta
@@ -248,7 +247,7 @@ BLYNK_WRITE(V3)
     }
 
     Blynk.syncVirtual(V0);
-    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
+    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off
     led1.off();
   }
 }
@@ -335,51 +334,51 @@ BLYNK_WRITE(V4)
     }
 
     Blynk.syncVirtual(V0);
-    digitalWrite(LED_BUILTIN, HIGH);// Turn the LED off
+    digitalWrite(LED_BUILTIN, HIGH); // Turn the LED off
     led1.off();
   }
 }
 
-
 //===============================================================
 // This routine is executed when you open its IP in browser
 //===============================================================
-void handleRoot() {
- String homePage = MAIN_page; //Read HTML contents
- server.send(200, "text/html", homePage); //Send web page
+void handleRoot()
+{
+  String homePage = MAIN_page;             //Read HTML contents
+  server.send(200, "text/html", homePage); //Send web page
 }
 
 //===============================================================
 // This routine is executed when you press submit
 //===============================================================
-void handleForm() {
-  nomeRede = server.arg("nomeRede"); 
-  usuarioRede = server.arg("usuarioRede"); 
+void handleForm()
+{
+  nomeRede = server.arg("nomeRede");
+  usuarioRede = server.arg("usuarioRede");
   senhaRede = server.arg("senhaRede");
 
- Serial.print("Nome da rede:");
- Serial.println(nomeRede);
- 
- Serial.print("Usuario da rede:");
- Serial.println(usuarioRede);
+  Serial.print("Nome da rede:");
+  Serial.println(nomeRede);
 
- Serial.print("Senha da rede:");
- Serial.println(senhaRede);
- 
- String s = "<a href='/'> Go Back </a>";
- server.send(200, "text/html", s); //Send web page
-   WiFi.reconnect(); // GUARDAR NO EPRO E RESETAR O BICHO
-    //WiFi.disconnect();
+  Serial.print("Usuario da rede:");
+  Serial.println(usuarioRede);
+
+  Serial.print("Senha da rede:");
+  Serial.println(senhaRede);
+
+  String s = "<a href='/'> Go Back </a>";
+  server.send(200, "text/html", s); //Send web page
+  WiFi.reconnect();                 // GUARDAR NO EPRO E RESETAR O BICHO
+                                    //WiFi.disconnect();
   //  ESP.reset();
 }
-
 
 // function to connect PEAP wifi network
 void ConnectWifi()
 {
-    
-  // verifica WIFI 
-  if (WiFi.status() != WL_CONNECTED){
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
     Serial.println();
     Serial.println("TENTANDO CONECTAR no wifi... ");
 
@@ -397,7 +396,6 @@ void ConnectWifi()
     wifi_station_set_enterprise_password((uint8 *)password, strlen(password));
     wifi_station_connect();
 
-  
     // Wait for connection AND IP address from DHCP
     Serial.println("PEGANDO UM IP ");
     Serial.println(nomeRede);
@@ -407,14 +405,16 @@ void ConnectWifi()
       count++;
       Serial.print(".");
       delay(1000);
-      if(count == 30) {
+      if (count == 30)
+      {
         return;
       }
     }
   }
-// VERIFICA BLYNK
-  if (WiFi.status() == WL_CONNECTED){
-   
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+
     Serial.println("");
     Serial.println("WiFi connected");
     Serial.println("IP address: ");
@@ -426,7 +426,7 @@ void ConnectWifi()
     {
       // Wait until connected
       Serial.print("|");
-       delay(1000);
+      delay(1000);
     }
     Serial.println("Connected to Blynk server");
     digitalWrite(LED_BUILTIN, HIGH); // desligando o led
@@ -439,25 +439,21 @@ void ConnectWifi()
   }
 }
 
-
-
-
-void initApMode() {
+void initApMode()
+{
   Serial.println("");
-  WiFi.mode(WIFI_AP);           //Only Access point
-  WiFi.softAP(ssidAp, passwordAp);  //Start HOTspot removing password will disable security
+  WiFi.mode(WIFI_AP);              //Only Access point
+  WiFi.softAP(ssidAp, passwordAp); //Start HOTspot removing password will disable security
 
   IPAddress myIP = WiFi.softAPIP(); //Get IP address
   Serial.print("HotSpt IP:");
   Serial.println(myIP);
- 
-  server.on("/", handleRoot);      //Which routine to handle at root location
-  server.on("/action_page", handleForm); //form action is handled here
-  server.begin();                  //Start server
-  Serial.println("HTTP server started");
-  
-}
 
+  server.on("/", handleRoot);            //Which routine to handle at root location
+  server.on("/action_page", handleForm); //form action is handled here
+  server.begin();                        //Start server
+  Serial.println("HTTP server started");
+}
 
 void CheckConnection()
 {
@@ -490,7 +486,6 @@ void CheckConnection()
   }
 }
 
-
 void setup()
 {
   // put your setup code here, to run once:
@@ -498,31 +493,32 @@ void setup()
   delay(10);
   pinMode(LED_BUILTIN, OUTPUT);
   irsend.begin();
-  if (nomeRede != "") {
+  if (nomeRede != "")
+  {
     Serial.println("EXISTE UMA REDE WIFI CONFIGURADA:");
     Serial.println(nomeRede);
     timerId = timer.setInterval(20000L, CheckConnection); // check if still connected every 20 seconds
-  }else {
-     Serial.println("Não existe uma rede configurada, entrando em modo AP");
-     initApMode();
   }
-  
- 
+  else
+  {
+    Serial.println("Não existe uma rede configurada, entrando em modo AP");
+    initApMode();
+  }
 }
-
-
 
 void loop()
 {
 
-  if (nomeRede != "") { // se tiver com rede e usuário conectados
+  if (nomeRede != "")
+  { // se tiver com rede e usuário conectados
     if (WiFi.status() == WL_CONNECTED && Connected2Blynk)
     {
       Blynk.run(); // only process Blyk.run() function if we are connected to Blynk server
     }
     timer.run();
-  } else {
+  }
+  else
+  {
     server.handleClient();
   }
-   
 }
