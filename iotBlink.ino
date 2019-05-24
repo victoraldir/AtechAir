@@ -3,8 +3,19 @@
 #include <BlynkSimpleEsp8266.h>
 #include <ESP8266WebServer.h>
 #include <IRsend.h>
+#include <EEPROM.h>
+extern "C"
+{
+#include "user_interface.h"
+#include "wpa2_enterprise.h"
+}
 
-/*static const uint8_t D0   = 16;
+
+//===============================================================
+//  NODEMCU PINS TABLE
+//===============================================================
+/*
+  static const uint8_t D0   = 16;
   static const uint8_t D1   = 5;
   static const uint8_t D2   = 4;
   static const uint8_t D3   = 0;
@@ -14,20 +25,26 @@
   static const uint8_t D7   = 13;
   static const uint8_t D8   = 15;
   static const uint8_t D9   = 3;
-  static const uint8_t D10  = 1;*/
+  static const uint8_t D10  = 1;
+  */
+  
 
-extern "C"
-{
-#include "user_interface.h"
-#include "wpa2_enterprise.h"
-}
-char auth[] = "9532d90f53974b09955c9c353810ed06"; // Auth Token in the Blynk App.
 
-static const char *ssid = "ATECH"; // SSID to connect to
 
-static const char *username = "rssoares"; // Username for authentification
+// Absolute min and max eeprom addresses. Actual values are hardware-dependent.
+// These values can be changed e.g. to protect eeprom cells outside this range.
+const int EEPROM_MIN_ADDR = 0;
+const int EEPROM_MAX_ADDR = 511;
 
-static const char *password = "Ac03b76a@4796"; // Password for authentication
+
+
+char auth[] = ""; // Auth Token in the Blynk App.
+
+static const char *ssid = ""; // SSID to connect to
+
+static const char *username = ""; // Username for authentification
+
+static const char *password = ""; // Password for authentication
 
 #define LED_BUILTIN 2 // led built in of lolin v3
 
@@ -39,22 +56,15 @@ IRsend irsend(kIrLed); // Set the GPIO to be used to sending the message.
 
 // Keep this flag not to re-sync on every reconnection
 bool isFirstConnect = true;
-
+bool modoAP = false;
 //SSID and Password for ESP8266 AP mode
-const char *ssidAp = "ATECH-AIR-TESTE";
-const char *passwordAp = "123456789";
+const char *ssidAp = "ATECH-AIR-";
 
 ESP8266WebServer server(80); //Server on port 80
 
-String nomeRede = "TIRAR";
+String nomeRede = "";
 String usuarioRede = "";
 String senhaRede = "";
-
-IPAddress local_IP(192, 168, 4, 22);
-
-IPAddress gateway(192, 168, 4, 9);
-
-IPAddress subnet(255, 255, 255, 0);
 
 // página inicial de configuração
 const char MAIN_page[] PROGMEM = R"=====( 
@@ -66,7 +76,6 @@ const char MAIN_page[] PROGMEM = R"=====(
       <meta charset="ISO-8859-1">
   </head>
   <body>
-
       <h2>ATECH AIR 1.2.1<h2>
       <h3> Configuration Wifi Mode</h3>
 
@@ -85,7 +94,6 @@ const char MAIN_page[] PROGMEM = R"=====(
             <br/>
           <input type="submit" value="Gravar configuração">                  
       </form>             
-
   </body>
 </html>
 )=====";
@@ -114,6 +122,23 @@ uint16_t timerId;
 
 SimpleTimer timer;
 bool Connected2Blynk = false;
+
+// Generally, you should use "unsigned long" for variables that hold time
+// The value will quickly become too large for an int to store
+unsigned long previousMillis = 0; // will store last time LED was updated
+
+// constants won't change:
+const long interval = 1000; // interval at which to blink (milliseconds)
+
+// Variables will change:
+int ledState = LOW; // ledState used to set the LED
+
+
+int tentativasConexao = 0;
+
+//===============================================================
+// BLYNK OPERATIONS
+//===============================================================
 
 // This function will run every time Blynk connection is established
 BLYNK_CONNECTED()
@@ -348,41 +373,114 @@ void handleRoot()
   server.send(200, "text/html", homePage); //Send web page
 }
 
-//===============================================================
-// This routine is executed when you press submit
-//===============================================================
 void handleForm()
 {
-  nomeRede = server.arg("nomeRede");
-  usuarioRede = server.arg("usuarioRede");
-  senhaRede = server.arg("senhaRede");
 
-  Serial.print("Nome da rede:");
-  Serial.println(nomeRede);
-
-  Serial.print("Usuario da rede:");
-  Serial.println(usuarioRede);
-
-  Serial.print("Senha da rede:");
-  Serial.println(senhaRede);
+  String data = server.arg("nomeRede");
+  String result = "";
+  String recivedData;
 
   String s = "<a href='/'> Go Back </a>";
   server.send(200, "text/html", s); //Send web page
-  WiFi.reconnect();                 // GUARDAR NO EPRO E RESETAR O BICHO
-                                    //WiFi.disconnect();
-  //  ESP.reset();
+
+  ESP.reset(); // GUARDAR NO EPRO E RESETAR O BICHO
 }
 
-// function to connect PEAP wifi network
+// ==============================================================
+// EEPROM MEMORY OPERATIONS
+// ==============================================================
+void writeEEPROM(char add, String data)
+{
+  int _size = data.length();
+  int i;
+  for (i = 0; i < _size; i++)
+  {
+    EEPROM.write(add + i, data[i]);
+  }
+  EEPROM.write(add + _size, '\0'); //Add termination null character for String Data
+  EEPROM.commit();
+}
+
+String read_EEPROM(char add)
+{
+  int i;
+  char data[100]; //Max 100 Bytes
+  int len = 0;
+  unsigned char k;
+  k = EEPROM.read(add);
+  if (k == 255)
+  {
+    return String("vazio");
+  }
+  while (k != '\0' && len < 500) //Read until null character
+  {
+    k = EEPROM.read(add + len);
+    data[len] = k;
+    len++;
+  }
+  data[len] = '\0';
+  return String(data);
+}
+
+// ==============================================================
+// WIFI OPERATIONS
+// ==============================================================
+
+
 void ConnectWifi()
 {
 
   if (WiFi.status() != WL_CONNECTED)
   {
+    
     Serial.println();
-    Serial.println("TENTANDO CONECTAR no wifi... ");
+    Serial.println("TENTANDO CONECTAR NO WIFI: ");
 
-    // Setting ESP into STATION mode only (no AP mode or dual mode)
+    connectWifiWpa();
+
+    int count = 0;
+    while (WiFi.status() != WL_CONNECTED)// aguardando o wifi conectar 
+    {
+      count++;
+      Serial.print(count);
+      Serial.print(". ");
+      delay(1000);
+      if (count == 30)
+      { 
+        tentativasConexao ++;
+        Serial.println();
+        Serial.println("ERRO AO CONECTAR AO WIFI ");
+        Serial.print("Tentativa: ");
+        Serial.print(tentativasConexao);
+        if(tentativasConexao == 3) {
+          Serial.println();
+          Serial.println("Tentou conectar 3 vezes, entrar em modoAP e ficar por 180 segundos");
+        }
+        return;
+      }
+    }
+  }
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    tentativasConexao = 0;
+    Serial.println();
+    Serial.print("DISPOSITIVO CONECTADO AO WIFI, IP: ");
+    Serial.println(WiFi.localIP());
+    conectarBlynk();
+  } else
+  {
+    Serial.println();
+    Serial.println("PROBLEMAS PARA CONECTAR NO WIFI");
+  }
+}
+
+void connectWifiComun(){
+ WiFi.begin(ssid, password);
+}
+
+void connectWifiWpa(){
+// Setting ESP into STATION mode only (no AP mode or dual mode)
     wifi_set_opmode(STATION_MODE);
     struct station_config wifi_config;
     memset(&wifi_config, 0, sizeof(wifi_config));
@@ -395,55 +493,31 @@ void ConnectWifi()
     wifi_station_set_enterprise_username((uint8 *)username, strlen(username));
     wifi_station_set_enterprise_password((uint8 *)password, strlen(password));
     wifi_station_connect();
+}
 
-    // Wait for connection AND IP address from DHCP
-    Serial.println("PEGANDO UM IP ");
-    Serial.println(nomeRede);
-    int count = 0;
-    while (WiFi.status() != WL_CONNECTED)
-    {
-      count++;
-      Serial.print(".");
-      delay(1000);
-      if (count == 30)
-      {
-        return;
-      }
-    }
-  }
-
-  if (WiFi.status() == WL_CONNECTED)
-  {
-
-    Serial.println("");
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
+void conectarBlynk() {
     Blynk.config(auth); // in place of Blynk.begin(auth, ssid, pass);
-    Serial.println("-----------------------");
-    Serial.println("try conect to Blynk server");
+    Serial.println();
+    Serial.println("TENTASNDO CONECTAR AO BLYNK ");
     while (Blynk.connect() == false)
     {
       // Wait until connected
-      Serial.print("|");
+      Serial.print(".");
       delay(1000);
     }
-    Serial.println("Connected to Blynk server");
+    Serial.println("DISPOSITIVO CONECTADO AO BLYNK");
     digitalWrite(LED_BUILTIN, HIGH); // desligando o led
     isFirstConnect = false;
-  }
-
-  else
-  {
-    Serial.println("\nCheck Router ");
-  }
 }
 
 void initApMode()
 {
   Serial.println("");
+  Serial.println("tENTANDO ENTRAR EM MODO AP");
+  Serial.println("");
+
   WiFi.mode(WIFI_AP);              //Only Access point
-  WiFi.softAP(ssidAp, passwordAp); //Start HOTspot removing password will disable security
+  WiFi.softAP(ssidAp+WiFi.macAddress()); //Start HOTspot removing password will disable security
 
   IPAddress myIP = WiFi.softAPIP(); //Get IP address
   Serial.print("HotSpt IP:");
@@ -452,73 +526,133 @@ void initApMode()
   server.on("/", handleRoot);            //Which routine to handle at root location
   server.on("/action_page", handleForm); //form action is handled here
   server.begin();                        //Start server
-  Serial.println("HTTP server started");
+  Serial.println("MODO AP INCIADO COM SUCESSO ");
 }
 
 void CheckConnection()
 {
+  Serial.println();
+  Serial.println(" ---------------------- check connection  ------------------------");
+  Serial.println();
+  Connected2Blynk = Blynk.connected();
+  
+  Serial.print("STATUS BLYNK:");
+  Serial.println(Connected2Blynk);
+  Serial.println("--------");
+  Serial.print("STATUS WIFI:");
+  Serial.println(WiFi.status());
 
-  if (nomeRede != "")
+  if (WiFi.status() != WL_CONNECTED || !Connected2Blynk)
   {
     Serial.println();
-    Serial.println(" ---------------------- check connection  ------------------------");
-    delay(10);
-    Connected2Blynk = Blynk.connected();
-
-    Serial.print("blynk:");
-    Serial.println(Connected2Blynk);
-    Serial.println("--------");
-    Serial.print("WIFI:");
-    Serial.println(WiFi.status());
-
-    if (WiFi.status() != WL_CONNECTED || !Connected2Blynk)
-    {
-      Serial.println();
-      Serial.println("Not connected to Blynk server or wifi");
-      ConnectWifi();
-    }
-    else
-    {
-      Serial.println();
-      Serial.print("Still connected to Blynk server: ");
-      Serial.println(WiFi.localIP());
-    }
+    Serial.println("NOT CONNECTED TO  Blynk or WIFI");
+    ConnectWifi();
+  }
+  else
+  {
+    Serial.println();
+    Serial.print("STILL CONECTED, IP: ");
+    Serial.println(WiFi.localIP());
+    Serial.println();
   }
 }
+
+
+
+void IsWifiConfigInMemory()
+{ // tamanho da palavra no eeprom é de 50 bytes
+
+  Serial.println();
+  Serial.println("---------------------------------------------------------------");
+  Serial.println("IsWifiConfigInMemory: VERIFICANDO SE EXISTE UMA CONFIGURAÇÃO DE WIFI NA MEMÓRIA EEPROM ");
+  Serial.println();
+  Serial.print(" -> Lendo nomeRede do wifi no EEPROM: ");
+  Serial.println(read_EEPROM(0));
+  Serial.print(" -> Lendo usuarioRede do wifi no EEPROM: ");
+  Serial.println(read_EEPROM(50));
+  Serial.print(" -> Lendo senhaRede do wifi no EEPROM: ");
+  Serial.println(read_EEPROM(100));
+  Serial.println("----------------------------------------");
+  Serial.println();
+
+  if (read_EEPROM(0) != "vazio" && read_EEPROM(50) != "vazio" && read_EEPROM(100) != "vazio")
+  { // se existir algo nos 3 endereços eeprom então entra em station mode
+    modoAP = false;
+  }
+  else
+  {
+    modoAP = true;
+  }
+}
+
+
+
 
 void setup()
 {
   // put your setup code here, to run once:
   Serial.begin(9600);
-  delay(10);
-  pinMode(LED_BUILTIN, OUTPUT);
+  EEPROM.begin(512);
   irsend.begin();
-  if (nomeRede != "")
+  pinMode(LED_BUILTIN, OUTPUT);
+  delay(400);
+
+  IsWifiConfigInMemory(); // verifica se já tem rede wifi gravada na placa
+  //modoAP = false // *****************APAGAR
+
+  if (modoAP == true)
   {
-    Serial.println("EXISTE UMA REDE WIFI CONFIGURADA:");
-    Serial.println(nomeRede);
-    timerId = timer.setInterval(20000L, CheckConnection); // check if still connected every 20 seconds
+    Serial.println("ENTRANDO EM MODO AP");
+    initApMode();
   }
   else
   {
-    Serial.println("Não existe uma rede configurada, entrando em modo AP");
-    initApMode();
+    Serial.println("ENTRANDO EM MODO STATION");
+    Serial.println("iniciando o timer para conectar no wifi em 20 segundos");
+    timerId = timer.setInterval(20000L, CheckConnection); // check if still connected every 20 seconds
+  }
+}
+
+void piscarLedModoAp()
+{
+  // check to see if it's time to blink the LED; that is, if the difference
+  // between the current time and last time you blinked the LED is bigger than
+  // the interval at which you want to blink the LED.
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - previousMillis >= interval)
+  {
+    // save the last time you blinked the LED
+    previousMillis = currentMillis;
+
+    // if the LED is off turn it on and vice-versa:
+    if (ledState == LOW)
+    {
+      ledState = HIGH;
+    }
+    else
+    {
+      ledState = LOW;
+    }
+
+    // set the LED with the ledState of the variable:
+    digitalWrite(LED_BUILTIN, ledState);
   }
 }
 
 void loop()
 {
-
-  if (nomeRede != "")
-  { // se tiver com rede e usuário conectados
+  timer.run();
+  if (modoAP == false) // MODO STATION
+  {                
     if (WiFi.status() == WL_CONNECTED && Connected2Blynk)
     {
       Blynk.run(); // only process Blyk.run() function if we are connected to Blynk server
     }
-    timer.run();
   }
-  else
+  else // MODO AP
   {
-    server.handleClient();
+    server.handleClient(); // escuta os clientes
+    piscarLedModoAp();
   }
 }
